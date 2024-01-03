@@ -1,95 +1,120 @@
-import Image from 'next/image'
-import styles from './page.module.css'
+"use client";
 
-export default function Home() {
-  return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+import { MemoryRouter as Router, Routes, Route } from "react-router-dom";
+
+import "./App.css";
+import { Button, TextField } from "@mui/material";
+import {
+    CloudUpload as CloudUploadIcon,
+    CheckOutlined,
+    Download,
+} from "@mui/icons-material";
+import { useState } from "react";
+
+import decode from "@/api";
+
+function Downloader() {
+    const [publicKey, setPublicKey] = useState("");
+    const [privateKey, setPrivKey] = useState("");
+    const [user, setUser] = useState("");
+    const [password, setPassword] = useState("");
+
+    return (
+        <div className="page">
+            <h1>compass-downloader</h1>
+            <div className="content">
+                <div className="row">
+                    <Button
+                        component="label"
+                        variant="contained"
+                        startIcon={
+                            publicKey ? <CheckOutlined /> : <CloudUploadIcon />
+                        }>
+                        Select Public Key
+                        <input
+                            type="file"
+                            hidden
+                            onInput={(event) => {
+                                try {
+                                    const fr = new FileReader();
+                                    fr.onload = () =>
+                                        setPublicKey(
+                                            fr.result?.toString() ?? ""
+                                        );
+                                    const { files } = event.currentTarget;
+                                    if (files) {
+                                        fr.readAsText(files[0]);
+                                    }
+                                } catch (error) {
+                                    console.log(error);
+                                }
+                            }}
+                        />
+                    </Button>
+                    <Button
+                        component="label"
+                        variant="contained"
+                        startIcon={
+                            privateKey ? <CheckOutlined /> : <CloudUploadIcon />
+                        }>
+                        Select Private Key
+                        <input
+                            type="file"
+                            hidden
+                            onInput={(event) => {
+                                try {
+                                    const fr = new FileReader();
+                                    fr.onload = () =>
+                                        setPrivKey(fr.result?.toString() ?? "");
+                                    const { files } = event.currentTarget;
+                                    if (files) {
+                                        fr.readAsText(files[0]);
+                                    }
+                                } catch (error) {
+                                    console.log(error);
+                                }
+                            }}
+                        />
+                    </Button>
+                </div>
+                <div className="row">
+                    <TextField
+                        value={user}
+                        variant="outlined"
+                        label="Username"
+                        onChange={(event) => setUser(event.target.value)}
+                    />
+                    <TextField
+                        variant="outlined"
+                        label="Password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                    />
+                </div>
+                <div className="row">
+                    <Button
+                        variant="contained"
+                        startIcon={<Download />}
+                        disabled={
+                            !user || !password || !privateKey || !publicKey
+                        }
+                        onClick={() =>
+                            decode(user, password, publicKey, privateKey)
+                        }>
+                        Download
+                    </Button>
+                </div>
+            </div>
         </div>
-      </div>
+    );
+}
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  )
+export default function App() {
+    return (
+        <Router>
+            <Routes>
+                <Route path="/" element={<Downloader />} />
+            </Routes>
+        </Router>
+    );
 }
