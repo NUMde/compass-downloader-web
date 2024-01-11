@@ -16,8 +16,8 @@ import decode from "@/api";
 function Downloader() {
     const [publicKey, setPublicKey] = useState("");
     const [privateKey, setPrivKey] = useState("");
-    const [user, setUser] = useState("");
-    const [password, setPassword] = useState("");
+    const [user, setUser] = useState("downloader");
+    const [password, setPassword] = useState("vOqyhLr936502");
 
     return (
         <div className="page">
