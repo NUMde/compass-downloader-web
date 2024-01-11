@@ -6,15 +6,12 @@ import {
     QuestionnaireResponseItem,
 } from "fhir/r4";
 
+import * as crypto from "crypto";
+
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import jws from "jws";
-import forge, {
-    pkcs7,
-    random,
-    cipher as forgeCipher,
-    util as forgeUtil,
-} from "node-forge";
+import forge, { pkcs7 } from "node-forge";
 
 import config from "../config";
 
@@ -41,33 +38,63 @@ type ResponseItem = Omit<QuestionnaireItem, "item"> & {
 
 const questionnairesMap: Record<string, Questionnaire> = {};
 
-// // encrypt credentials
+// encrypt credentials
+// function aesEncrypt(data: string) {
+//     const iv = random.getBytesSync(16);
+//     const key = random.getBytesSync(32);
+
+//     const cipher = forgeCipher.createCipher("AES-CBC", key);
+//     cipher.start({ iv });
+//     cipher.update(forgeUtil.createBuffer(data));
+//     cipher.finish();
+
+//     const cipherText = forgeUtil.encode64(cipher.output.getBytes());
+
+//     const base64Key = forgeUtil.encode64(key);
+//     const base64IV = forgeUtil.encode64(iv);
+//     return {
+//         cipher: cipherText,
+//         data: base64Key,
+//         iv: base64IV,
+//     };
+// }
+
+// encrypt credentials
 function aesEncrypt(data: string) {
-    const iv = random.getBytesSync(16);
-    const key = random.getBytesSync(32);
+    const iv = crypto.randomBytes(16);
+    const key = crypto.randomBytes(32);
 
-    const cipher = forgeCipher.createCipher("AES-CBC", key);
-    cipher.start({ iv });
-    cipher.update(forgeUtil.createBuffer(data));
-    cipher.finish();
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    let cipherText = cipher.update(btoa(data), "base64", "base64");
+    cipherText += cipher.final("base64");
 
-    const cipherText = forgeUtil.encode64(cipher.output.getBytes());
+    const base64Cipher = cipherText;
+    const base64Key = Buffer.from(key).toString("base64");
+    const base64IV = Buffer.from(iv).toString("base64");
 
-    const base64Key = forgeUtil.encode64(key);
-    const base64IV = forgeUtil.encode64(iv);
     return {
-        cipher: cipherText,
+        cipher: base64Cipher,
         data: base64Key,
         iv: base64IV,
     };
 }
 
 // encrypt token request
-function rsaEncrypt(data: string, key: string) {
-    const publicKey = forge.pki.publicKeyFromPem(key);
-    const returnValue = publicKey.encrypt(data, "RSAES-PKCS1-V1_5");
+// function rsaEncrypt(data: string, key: string) {
+//     const publicKey = forge.pki.publicKeyFromPem(key);
+//     const returnValue = publicKey.encrypt(data, "RSAES-PKCS1-V1_5");
 
-    return forgeUtil.encode64(returnValue);
+//     return forgeUtil.encode64(returnValue);
+// }
+
+function rsaEncrypt(data: string, key: string) {
+    // const publicKey = crypto.createPublicKey(key);
+    const cipherText = crypto.publicEncrypt(
+        { key: key, padding: crypto.constants.RSA_PKCS1_PADDING },
+        Buffer.from(data, "base64")
+    );
+    const base64Cipher = cipherText.toString("base64");
+    return base64Cipher;
 }
 
 // decrypt questionnaire response
@@ -108,7 +135,7 @@ async function getAuthenticationToken(
             encrypted_creds: cipher,
             encrypted_key: rsaEncryptedAESkey,
             iv,
-            encryptedWithForge: true,
+            encryptedWithForge: false,
         };
 
         const response = await fetch(`${config.BACKEND_URL}/auth`, {
