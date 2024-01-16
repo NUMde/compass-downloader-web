@@ -1,0 +1,13 @@
+html {
+    height: 100%;
+}
+
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+}
+
+#__next {
+    height: calc(100% - 56px);
+}

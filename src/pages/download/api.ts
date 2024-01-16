@@ -13,7 +13,7 @@ import JSZip from "jszip";
 import jws from "jws";
 import forge, { pkcs7 } from "node-forge";
 
-import config from "../config";
+import config from "../../config";
 
 /**
  * types
@@ -116,7 +116,8 @@ function pkcs7decrypt(data: string, privateKey: string) {
 async function getAuthenticationToken(
     user: string,
     password: string,
-    publicKey: string
+    publicKey: string,
+    url: string
 ) {
     const authCredentials = {
         ApiID: user,
@@ -138,7 +139,7 @@ async function getAuthenticationToken(
             encryptedWithForge: false,
         };
 
-        const response = await fetch(`${config.BACKEND_URL}/auth`, {
+        const response = await fetch(`${url}/auth`, {
             headers: { "Content-Type": "application/json" },
             method: "POST",
             body: JSON.stringify(authBody),
@@ -153,13 +154,11 @@ async function getAuthenticationToken(
 }
 
 // helper function for paginated download
-async function getPage(headers: HeadersInit, page: number) {
+async function getPage(url: string, headers: HeadersInit, page: number) {
     const params = { page: `${page}` };
     try {
         const response = await fetch(
-            `${config.BACKEND_URL}/${config.DL_ROUTE}?${new URLSearchParams(
-                params
-            )}`,
+            `${url}/${config.DL_ROUTE}?${new URLSearchParams(params)}`,
             {
                 headers,
                 method: "GET",
@@ -183,8 +182,12 @@ async function verifyAndParseResult(jwsToken: string, publicKey: string) {
     return null;
 }
 
-async function getQRListFromQueue(headers: HeadersInit, publicKey: string) {
-    const firstPage = await getPage(headers, 1);
+async function getQRListFromQueue(
+    url: string,
+    headers: HeadersInit,
+    publicKey: string
+) {
+    const firstPage = await getPage(url, headers, 1);
     const { totalPages } = firstPage;
     const dfToAdd = await verifyAndParseResult(
         firstPage.cTransferList,
@@ -196,7 +199,7 @@ async function getQRListFromQueue(headers: HeadersInit, publicKey: string) {
     // if there are more than one page, loop and append
     for (let i = 2; i <= totalPages; i += 1) {
         queries.push(
-            getPage(headers, i)
+            getPage(url, headers, i)
                 .then((page) =>
                     verifyAndParseResult(page.cTransferList, publicKey)
                 )
@@ -210,12 +213,17 @@ async function getQRListFromQueue(headers: HeadersInit, publicKey: string) {
 }
 
 async function getQbyURLandVersion(
+    backendUrl: string,
     headers: HeadersInit,
-    url: string,
+    questionnaireUrl: string,
     version: string
 ) {
-    const params = new URLSearchParams({ url, version, languageCode: "de" });
-    const route = `${config.BACKEND_URL}/questionnaire?${params}`;
+    const params = new URLSearchParams({
+        url: questionnaireUrl,
+        version,
+        languageCode: "de",
+    });
+    const route = `${backendUrl}/questionnaire?${params}`;
 
     try {
         const response = await fetch(route, { headers, method: "GET" });
@@ -234,11 +242,13 @@ async function getQbyURLandVersion(
 }
 
 // get all original questionnaires form backend
-async function getAllQuestionnaires(header: HeadersInit) {
+async function getAllQuestionnaires(url: string, header: HeadersInit) {
     const queries: any[] = [];
     Object.keys(questionnairesMap).forEach((id) => {
-        const [url, version] = id.split("|");
-        queries.push(getQbyURLandVersion(header, url, version));
+        const [questionnaireUrl, version] = id.split("|");
+        queries.push(
+            getQbyURLandVersion(url, header, questionnaireUrl, version)
+        );
     });
     return Promise.all(queries);
 }
@@ -333,18 +343,26 @@ function flattenAnswers(root: QuestionnaireResponseItem[] | undefined) {
  * ######### MAIN #########
  */
 
-const decode = async (
-    username: string,
-    password: string,
-    publicKey: string,
-    privateKey: string
-) => {
+const decode = async ({
+    username,
+    password,
+    publicKey,
+    privateKey,
+    url,
+}: {
+    username: string;
+    password: string;
+    publicKey: string;
+    privateKey: string;
+    url: string;
+}) => {
     console.log("### (1/7) requesting token ###");
 
     const accessToken = await getAuthenticationToken(
         username,
         password,
-        publicKey
+        publicKey,
+        url
     );
     if (!accessToken) {
         throw new Error("No token received!");
@@ -352,7 +370,7 @@ const decode = async (
     const header = { Authorization: `Bearer ${accessToken}` };
 
     console.log("### (2/7) requesting pages ###");
-    const qrList = await getQRListFromQueue(header, privateKey);
+    const qrList = await getQRListFromQueue(url, header, privateKey);
 
     console.log("### (3/7) decrypting pages ###");
     const decryptedResponses: Array<DecryptedEntry> = qrList.map((qr) => ({
@@ -382,7 +400,7 @@ const decode = async (
         }
     });
 
-    await getAllQuestionnaires(header);
+    await getAllQuestionnaires(url, header);
 
     console.log("### (5/7) Build Questionnaire Map ###");
 
@@ -428,10 +446,9 @@ const decode = async (
     Object.keys(responsesMap).forEach((key) => {
         try {
             zip.file(
-                `${key.replace(
-                    "https://ghh.unimedizin-mainz.de/fhir/questionnaire/",
-                    ""
-                )}.csv`,
+                encodeURI(
+                    `${key.replace(config.QUESTIONNAIRE_PREFIX, "")}.csv`
+                ),
                 responsesMap[key],
                 {}
             );
