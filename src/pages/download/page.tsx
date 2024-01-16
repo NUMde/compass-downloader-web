@@ -292,7 +292,7 @@ function StepBuilder({
                     onClick={() =>
                         decode({
                             ...data,
-                            url: `https://${data.url}.${config.BACKEND_TLD}`,
+                            url: `https://${data.url}.${config.BACKEND_TLD}/api`,
                         })
                     }
                     sx={{ height: "56px" }}>
