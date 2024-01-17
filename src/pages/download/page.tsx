@@ -153,7 +153,7 @@ function Downloader() {
                     />
                     <Box
                         sx={{
-                            width: "50%",
+                            width: "66%",
                             margin: "0 auto",
                         }}>
                         <Button
@@ -219,6 +219,8 @@ function StepBuilder({
                     }
                     sx={{
                         height: "56px",
+                        width: "66%",
+                        m: "0 auto",
                     }}>
                     Datei auswählen
                     <VisuallyHiddenInput
@@ -278,7 +280,8 @@ function StepBuilder({
                               }
                             : undefined
                     }
-                    sx={{ textAlign: "center" }}
+                    sx={{ width: "66%", m: "0 auto" }}
+                    inputProps={{ style: { textAlign: "center" } }}
                 />
             );
             break;
@@ -295,10 +298,11 @@ function StepBuilder({
                             url: `https://${data.url}.${config.BACKEND_TLD}/api`,
                         })
                     }
-                    sx={{ height: "56px" }}>
+                    sx={{ height: "56px", width: "66%", m: "0 auto" }}>
                     {step.label}
                 </Button>
             );
     }
+
     return input;
 }
