@@ -8,14 +8,15 @@ import {
     BottomNavigationAction,
     Paper,
 } from "@mui/material";
-
-import KeyGen from "./keygen/page";
-import Downloader from "@/pages/download/page";
 import { Download, Help, Key } from "@mui/icons-material";
+
+import KeyGen from "@/pages/keygen/page";
+import Downloader from "@/pages/download/page";
+import config from "@/config";
 
 export default function App() {
     return (
-        <Router>
+        <Router basename={config.BASE_PATH}>
             <AppBar position="fixed">
                 <Toolbar>
                     <Typography
