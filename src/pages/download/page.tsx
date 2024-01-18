@@ -1,28 +1,36 @@
 "use client";
 
-import styles from "./download.module.css";
+import { saveAs } from "file-saver";
+import { useState, forwardRef } from "react";
 
-import { useState, Fragment } from "react";
+import config from "@/config";
+import decode from "@/pages/download/api";
 import {
-    Box,
-    Button,
-    Stepper,
-    Step,
-    StepLabel,
-    Typography,
-    TextField,
-    Divider,
-    InputAdornment,
-    styled,
-} from "@mui/material";
-import {
-    CloudUpload as CloudUploadIcon,
     CheckOutlined,
+    CloudUpload as CloudUploadIcon,
+    Done,
     Download,
 } from "@mui/icons-material";
+import {
+    Alert as MuiAlert,
+    AlertProps,
+    Box,
+    Button,
+    CircularProgress,
+    Divider,
+    InputAdornment,
+    Snackbar,
+    Step,
+    StepLabel,
+    Stepper,
+    styled,
+    TextField,
+    Typography,
+} from "@mui/material";
 
-import decode from "@/pages/download/api";
-import config from "@/config";
+import { green } from "@mui/material/colors";
+
+import styles from "./download.module.css";
 
 type DownloadState = {
     url: string;
@@ -33,28 +41,21 @@ type DownloadState = {
     download: null;
 };
 
-type DownloaderStep = {
-    index: number;
-    label: string;
-    paramName: keyof DownloadState;
-};
-
-const steps: DownloaderStep[] = [
-    { index: 0, label: "Backend Adresse eingeben", paramName: "url" },
-    {
-        index: 1,
-        label: "Öffentlichen Schlüssel auswählen",
-        paramName: "publicKey",
-    },
-    {
-        index: 2,
-        label: "Privaten Schlüssel auswählen",
-        paramName: "privateKey",
-    },
-    { index: 3, label: "Benutzernamen eingeben", paramName: "username" },
-    { index: 4, label: "Password eingeben", paramName: "password" },
-    { index: 5, label: "Daten herunterladen", paramName: "download" },
+const steps = [
+    "Backend Adresse eingeben",
+    "Öffentlichen Schlüssel auswählen",
+    "Privaten Schlüssel auswählen",
+    "Benutzernamen eingeben",
+    "Password eingeben",
+    "Daten herunterladen",
 ];
+
+const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert(
+    props,
+    ref
+) {
+    return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+});
 
 const VisuallyHiddenInput = styled("input")({
     clip: "rect(0 0 0 0)",
@@ -70,6 +71,11 @@ const VisuallyHiddenInput = styled("input")({
 
 function Downloader() {
     const [activeStep, setActiveStep] = useState(0);
+    const [loadingState, setLoadingState] = useState<
+        "initial" | "loading" | "success" | "error"
+    >("initial");
+
+    const [errorMsg, setErrorMsg] = useState("");
 
     const [data, setData] = useState<DownloadState>({
         url: "",
@@ -87,6 +93,46 @@ function Downloader() {
     const handleBack = () => {
         const newActiveStep = activeStep - 1;
         setActiveStep(newActiveStep);
+    };
+
+    const handleDownload = async () => {
+        setLoadingState("loading");
+        try {
+            const file = await decode(data);
+            setLoadingState("success");
+
+            saveAs(file, "questiFHIR-export.zip");
+        } catch (err: any) {
+            setLoadingState("error");
+            switch (err) {
+                case "Auth Failed":
+                    if (err.cause == "Not Found") {
+                        setErrorMsg(
+                            "Login nicht möglich. Bitte eingegebene Adresse prüfen."
+                        );
+                    } else if (err.cause == "Unauthorized") {
+                        setErrorMsg(
+                            "Login nicht möglich. Bitte eingegebene Zugangsdaten prüfen."
+                        );
+                    }
+                    break;
+                case "Download Failed":
+                    if (err.cause == "Unauthorized") {
+                        setErrorMsg(
+                            "Download fehlgeschlagen. Unautorisierter Zugriff."
+                        );
+                    }
+                    break;
+                default:
+                    setErrorMsg(
+                        "Download fehlgeschlagen. Bitte eingegeben Daten prüfen oder später erneut versuchen."
+                    );
+            }
+        }
+    };
+
+    const closeAlert = () => {
+        setLoadingState("initial");
     };
 
     return (
@@ -111,14 +157,15 @@ function Downloader() {
                     Download
                 </Typography>
             </Box>
+            <Divider />
             <Stepper
                 sx={{ m: 2, flex: 1, alignItems: "center" }}
                 activeStep={activeStep}
                 alternativeLabel>
                 {steps.map((step, _index) => {
                     return (
-                        <Step key={step.label}>
-                            <StepLabel>{step.label}</StepLabel>
+                        <Step key={step}>
+                            <StepLabel>{step}</StepLabel>
                         </Step>
                     );
                 })}
@@ -141,16 +188,190 @@ function Downloader() {
                         justifyContent: "space-evenly",
                     }}>
                     <Typography align="center" variant="h4">
-                        {steps[activeStep].label}
+                        {steps[activeStep]}
                     </Typography>
-                    {/* steps */}
+                    {/* --- steps ---  */}
 
-                    <StepBuilder
-                        step={steps[activeStep]}
-                        data={data}
-                        setData={setData}
-                        activeStep={activeStep}
-                    />
+                    {activeStep == 0 && (
+                        <TextField
+                            variant="outlined"
+                            value={data.url}
+                            onChange={(event) =>
+                                setData({
+                                    ...data,
+                                    url: event.currentTarget.value,
+                                })
+                            }
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        https://
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        .{config.BACKEND_TLD}
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{ width: "66%", m: "0 auto" }}
+                            inputProps={{ style: { textAlign: "center" } }}
+                        />
+                    )}
+                    {activeStep == 1 && (
+                        <Button
+                            color={data.publicKey ? "success" : "primary"}
+                            component="label"
+                            variant="outlined"
+                            startIcon={
+                                data.publicKey === "" ? (
+                                    <CloudUploadIcon />
+                                ) : (
+                                    <CheckOutlined />
+                                )
+                            }
+                            sx={{
+                                height: "56px",
+                                width: "66%",
+                                m: "0 auto",
+                            }}>
+                            Datei auswählen
+                            <VisuallyHiddenInput
+                                type="file"
+                                accept=".pem"
+                                onChange={(event) => {
+                                    try {
+                                        const fr = new FileReader();
+                                        fr.onload = () =>
+                                            setData({
+                                                ...data,
+                                                publicKey:
+                                                    fr.result?.toString() ?? "",
+                                            });
+                                        const { files } = event.currentTarget;
+                                        if (files) {
+                                            fr.readAsText(files[0]);
+                                        }
+                                    } catch (error) {
+                                        // TODO: show alert
+                                        console.log(error);
+                                    }
+                                }}
+                            />
+                        </Button>
+                    )}
+                    {activeStep == 2 && (
+                        <Button
+                            color={data.privateKey ? "success" : "primary"}
+                            component="label"
+                            variant="outlined"
+                            startIcon={
+                                data.privateKey === "" ? (
+                                    <CloudUploadIcon />
+                                ) : (
+                                    <CheckOutlined />
+                                )
+                            }
+                            sx={{
+                                height: "56px",
+                                width: "66%",
+                                m: "0 auto",
+                            }}>
+                            Datei auswählen
+                            <VisuallyHiddenInput
+                                type="file"
+                                accept=".pem"
+                                onChange={(event) => {
+                                    try {
+                                        const fr = new FileReader();
+                                        fr.onload = () =>
+                                            setData({
+                                                ...data,
+                                                privateKey:
+                                                    fr.result?.toString() ?? "",
+                                            });
+                                        const { files } = event.currentTarget;
+                                        if (files) {
+                                            fr.readAsText(files[0]);
+                                        }
+                                    } catch (error) {
+                                        // TODO: show alert
+                                        console.log(error);
+                                    }
+                                }}
+                            />
+                        </Button>
+                    )}
+                    {activeStep == 3 && (
+                        <TextField
+                            variant="outlined"
+                            value={data.username}
+                            onChange={(event) =>
+                                setData({
+                                    ...data,
+                                    username: event.currentTarget.value,
+                                })
+                            }
+                            sx={{ width: "66%", m: "0 auto" }}
+                            inputProps={{ style: { textAlign: "center" } }}
+                        />
+                    )}
+                    {activeStep == 4 && (
+                        <TextField
+                            variant="outlined"
+                            type="password"
+                            value={data.password}
+                            onChange={(event) =>
+                                setData({
+                                    ...data,
+                                    password: event.currentTarget.value,
+                                })
+                            }
+                            sx={{ width: "66%", m: "0 auto" }}
+                            inputProps={{ style: { textAlign: "center" } }}
+                        />
+                    )}
+                    {activeStep == 5 && (
+                        <Box
+                            sx={{
+                                position: "relative",
+                                m: "0 auto",
+                                width: "66%",
+                            }}>
+                            <Button
+                                color="success"
+                                variant="contained"
+                                endIcon={<Download />}
+                                disabled={loadingState == "loading"}
+                                onClick={() => handleDownload()}
+                                sx={{
+                                    height: "56px",
+                                    width: "100%",
+                                    m: "0 auto",
+                                    ...(loadingState === "success" && {
+                                        bgcolor: green[300],
+                                        "&:hover": {
+                                            bgcolor: green[500],
+                                        },
+                                    }),
+                                }}>
+                                {steps[5]}
+                            </Button>
+                            {loadingState === "loading" && (
+                                <CircularProgress
+                                    size={24}
+                                    sx={{
+                                        position: "absolute",
+                                        top: "50%",
+                                        left: "50%",
+                                        marginTop: "-12px",
+                                        marginLeft: "-12px",
+                                        color: green[500],
+                                    }}
+                                />
+                            )}
+                        </Box>
+                    )}
                     <Box
                         sx={{
                             width: "66%",
@@ -184,125 +405,23 @@ function Downloader() {
                     </Box>
                 </Box>
             </Box>
+
+            <Snackbar
+                anchorOrigin={{ horizontal: "center", vertical: "bottom" }}
+                open={loadingState === "success"}>
+                <Alert elevation={6} severity="success" onClose={closeAlert}>
+                    Daten erfolgreich heruntergeladen.
+                </Alert>
+            </Snackbar>
+            <Snackbar
+                anchorOrigin={{ horizontal: "center", vertical: "bottom" }}
+                open={loadingState === "error"}>
+                <Alert elevation={6} severity="error" onClose={closeAlert}>
+                    {errorMsg}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }
 
 export default Downloader;
-
-function StepBuilder({
-    step,
-    data,
-    setData,
-}: {
-    step: DownloaderStep;
-    data: DownloadState;
-    setData: (newState: DownloadState) => void;
-    activeStep: number;
-}) {
-    let input: JSX.Element = <></>;
-    switch (step.index) {
-        case 1:
-        case 2:
-            // public/private key input
-            input = (
-                <Button
-                    color={data[step.paramName] ? "success" : "primary"}
-                    component="label"
-                    variant="outlined"
-                    startIcon={
-                        data[step.paramName] === "" ? (
-                            <CloudUploadIcon />
-                        ) : (
-                            <CheckOutlined />
-                        )
-                    }
-                    sx={{
-                        height: "56px",
-                        width: "66%",
-                        m: "0 auto",
-                    }}>
-                    Datei auswählen
-                    <VisuallyHiddenInput
-                        type="file"
-                        accept=".pem"
-                        onChange={(event) => {
-                            try {
-                                const fr = new FileReader();
-                                fr.onload = () =>
-                                    setData({
-                                        ...data,
-                                        [step.paramName]:
-                                            fr.result?.toString() ?? "",
-                                    });
-                                const { files } = event.currentTarget;
-                                if (files) {
-                                    fr.readAsText(files[0]);
-                                }
-                            } catch (error) {
-                                // TODO: show alert
-                                console.log(error);
-                            }
-                        }}
-                    />
-                </Button>
-            );
-            break;
-
-        case 0:
-        case 3:
-        case 4:
-            // url/username/password input
-            input = (
-                <TextField
-                    variant="outlined"
-                    type={step.paramName == "password" ? "password" : "text"}
-                    value={data[step.paramName]}
-                    onChange={(event) =>
-                        setData({
-                            ...data,
-                            [step.paramName]: event.currentTarget.value,
-                        })
-                    }
-                    InputProps={
-                        step.paramName === "url"
-                            ? {
-                                  startAdornment: (
-                                      <InputAdornment position="start">
-                                          https://
-                                      </InputAdornment>
-                                  ),
-                                  endAdornment: (
-                                      <InputAdornment position="end">
-                                          .{config.BACKEND_TLD}
-                                      </InputAdornment>
-                                  ),
-                              }
-                            : undefined
-                    }
-                    sx={{ width: "66%", m: "0 auto" }}
-                    inputProps={{ style: { textAlign: "center" } }}
-                />
-            );
-            break;
-        case 5:
-            // download button
-            input = (
-                <Button
-                    color="success"
-                    variant="outlined"
-                    endIcon={<Download />}
-                    onClick={() =>
-                        decode({
-                            ...data,
-                            url: `https://${data.url}.${config.BACKEND_TLD}/api`,
-                        })
-                    }
-                    sx={{ height: "56px", width: "66%", m: "0 auto" }}>
-                    {step.label}
-                </Button>
-            );
-    }
-
-    return input;
-}

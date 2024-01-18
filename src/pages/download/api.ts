@@ -118,39 +118,39 @@ async function getAuthenticationToken(
     password: string,
     publicKey: string,
     url: string
-) {
+): Promise<string> {
     const authCredentials = {
         ApiID: user,
         ApiKey: password,
         CurrentDate: `${Date.now()}`,
     };
 
-    try {
-        const { data, iv, cipher } = aesEncrypt(
-            JSON.stringify(authCredentials)
-        );
+    const { data, iv, cipher } = aesEncrypt(JSON.stringify(authCredentials));
 
-        const rsaEncryptedAESkey = rsaEncrypt(data, publicKey);
+    const rsaEncryptedAESkey = rsaEncrypt(data, publicKey);
 
-        const authBody = {
-            encrypted_creds: cipher,
-            encrypted_key: rsaEncryptedAESkey,
-            iv,
-            encryptedWithForge: false,
-        };
+    const authBody = {
+        encrypted_creds: cipher,
+        encrypted_key: rsaEncryptedAESkey,
+        iv,
+        encryptedWithForge: false,
+    };
 
-        const response = await fetch(`${url}/auth`, {
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-            body: JSON.stringify(authBody),
-        });
+    const response = await fetch(`${url}/auth`, {
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+        body: JSON.stringify(authBody),
+    });
+    if (response.status === 200) {
         const token = JSON.parse(await response.text()).access_token;
 
         return token;
-    } catch (err) {
-        console.log(err);
-        return "";
+    } else if (response.status === 404) {
+        throw new Error("Auth Failed", { cause: "Not Found" });
+    } else if (response.status === 401) {
+        throw new Error("Auth Failed", { cause: "Unauthorized" });
     }
+    throw Error("Auth Failed", { cause: "unknown" });
 }
 
 // helper function for paginated download
@@ -225,20 +225,19 @@ async function getQbyURLandVersion(
     });
     const route = `${backendUrl}/questionnaire?${params}`;
 
-    try {
-        const response = await fetch(route, { headers, method: "GET" });
-        if (response.status === 200) {
-            const questionnaire = await response.json();
-            questionnairesMap[`${questionnaire.url}|${questionnaire.version}`] =
-                questionnaire;
+    const response = await fetch(route, { headers, method: "GET" });
+    if (response.status === 200) {
+        const questionnaire = await response.json();
+        questionnairesMap[`${questionnaire.url}|${questionnaire.version}`] =
+            questionnaire;
 
-            return questionnaire;
-        }
-        throw new Error(await response.text());
-    } catch (err) {
-        console.log(err);
-        return "";
+        return questionnaire;
+    } else if (response.status === 404) {
+        throw new Error("Download Failed", { cause: "Not Found" });
+    } else if (response.status === 401) {
+        throw new Error("Download Failed", { cause: "Unauthorized" });
     }
+    throw new Error("Download failed", { cause: "Unknown" });
 }
 
 // get all original questionnaires form backend
@@ -355,7 +354,7 @@ const decode = async ({
     publicKey: string;
     privateKey: string;
     url: string;
-}) => {
+}): Promise<Blob> => {
     console.log("### (1/7) requesting token ###");
 
     const accessToken = await getAuthenticationToken(
@@ -364,9 +363,7 @@ const decode = async ({
         publicKey,
         url
     );
-    if (!accessToken) {
-        throw new Error("No token received!");
-    }
+
     const header = { Authorization: `Bearer ${accessToken}` };
 
     console.log("### (2/7) requesting pages ###");
@@ -458,14 +455,9 @@ const decode = async ({
     });
 
     let file: Blob;
-    try {
-        file = await zip.generateAsync({ type: "blob" });
-    } catch (error) {
-        console.log(error);
-        return;
-    }
+    file = await zip.generateAsync({ type: "blob" });
 
-    saveAs(file, "questiFHIR-export.zip");
+    return file;
 };
 
 export default decode;
