@@ -98,13 +98,16 @@ function Downloader() {
     const handleDownload = async () => {
         setLoadingState("loading");
         try {
-            const file = await decode(data);
+            const file = await decode({
+                ...data,
+                url: `https://${data.url}.${config.BACKEND_TLD}/api`,
+            });
             setLoadingState("success");
 
             saveAs(file, "questiFHIR-export.zip");
         } catch (err: any) {
             setLoadingState("error");
-            switch (err) {
+            switch (err.message) {
                 case "Auth Failed":
                     if (err.cause == "Not Found") {
                         setErrorMsg(
