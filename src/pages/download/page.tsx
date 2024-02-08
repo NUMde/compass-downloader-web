@@ -8,7 +8,6 @@ import decode from "@/pages/download/api";
 import {
     CheckOutlined,
     CloudUpload as CloudUploadIcon,
-    Done,
     Download,
 } from "@mui/icons-material";
 import {
@@ -29,8 +28,6 @@ import {
 } from "@mui/material";
 
 import { green } from "@mui/material/colors";
-
-import styles from "./download.module.css";
 
 type DownloadState = {
     url: string;

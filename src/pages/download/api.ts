@@ -8,7 +8,6 @@ import {
 
 import * as crypto from "crypto";
 
-import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import jws from "jws";
 import forge, { pkcs7 } from "node-forge";
