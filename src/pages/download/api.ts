@@ -328,6 +328,7 @@ function flattenAnswers(root: QuestionnaireResponseItem[] | undefined) {
                         .map((answer) =>
                             typeof answer === "object" ? answer.code : answer
                         )
+                        .map((answer) => `"${answer}"`)
                         .join(", ");
                 }
             }
