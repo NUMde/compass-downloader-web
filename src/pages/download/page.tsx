@@ -1,7 +1,7 @@
 "use client";
 
 import { saveAs } from "file-saver";
-import { useState, forwardRef } from "react";
+import { forwardRef, useState } from "react";
 
 import config from "@/config";
 import decode from "@/pages/download/api";
@@ -9,6 +9,8 @@ import {
     CheckOutlined,
     CloudUpload as CloudUploadIcon,
     Download,
+    Visibility,
+    VisibilityOff,
 } from "@mui/icons-material";
 import {
     Alert as MuiAlert,
@@ -17,6 +19,7 @@ import {
     Button,
     CircularProgress,
     Divider,
+    IconButton,
     InputAdornment,
     Snackbar,
     Step,
@@ -26,7 +29,6 @@ import {
     TextField,
     Typography,
 } from "@mui/material";
-
 import { green } from "@mui/material/colors";
 
 type DownloadState = {
@@ -73,6 +75,16 @@ function Downloader() {
     >("initial");
 
     const [errorMsg, setErrorMsg] = useState("");
+
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleClickShowPassword = () => setShowPassword((show) => !show);
+
+    const handleMouseDownPassword = (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        event.preventDefault();
+    };
 
     const [data, setData] = useState<DownloadState>({
         url: "",
@@ -319,7 +331,7 @@ function Downloader() {
                     {activeStep == 4 && (
                         <TextField
                             variant="outlined"
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             value={data.password}
                             onChange={(event) =>
                                 setData({
@@ -329,6 +341,21 @@ function Downloader() {
                             }
                             sx={{ width: "66%", m: "0 auto" }}
                             inputProps={{ style: { textAlign: "center" } }}
+                            InputProps={{
+                                endAdornment: (
+                                    <IconButton
+                                        aria-label="toggle password visibility"
+                                        onClick={handleClickShowPassword}
+                                        onMouseDown={handleMouseDownPassword}
+                                        edge="end">
+                                        {showPassword ? (
+                                            <VisibilityOff />
+                                        ) : (
+                                            <Visibility />
+                                        )}
+                                    </IconButton>
+                                ),
+                            }}
                         />
                     )}
                     {activeStep == 5 && (
@@ -372,6 +399,7 @@ function Downloader() {
                             )}
                         </Box>
                     )}
+
                     <Box
                         sx={{
                             width: "66%",
@@ -388,6 +416,7 @@ function Downloader() {
                         </Button>
                         <Button
                             variant="contained"
+                            type="submit"
                             disabled={
                                 data[
                                     Object.keys(data)[
