@@ -443,7 +443,7 @@ const decode = async ({
     Object.keys(responsesMap).forEach((key) => {
         try {
             zip.file(
-                `${key.replace(config.QUESTIONNAIRE_PREFIX, "")}.csv`,
+                `${key.substring(key.lastIndexOf("/") + 1)}.csv`,
                 responsesMap[key],
                 {}
             );
