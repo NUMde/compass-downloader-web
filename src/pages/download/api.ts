@@ -14,6 +14,8 @@ import forge, { pkcs7 } from "node-forge";
 
 import config from "../../config";
 
+import { encode } from "windows-1252";
+
 /**
  * types
  */
@@ -38,27 +40,6 @@ type ResponseItem = Omit<QuestionnaireItem, "item"> & {
 const questionnairesMap: Record<string, Questionnaire> = {};
 
 // encrypt credentials
-// function aesEncrypt(data: string) {
-//     const iv = random.getBytesSync(16);
-//     const key = random.getBytesSync(32);
-
-//     const cipher = forgeCipher.createCipher("AES-CBC", key);
-//     cipher.start({ iv });
-//     cipher.update(forgeUtil.createBuffer(data));
-//     cipher.finish();
-
-//     const cipherText = forgeUtil.encode64(cipher.output.getBytes());
-
-//     const base64Key = forgeUtil.encode64(key);
-//     const base64IV = forgeUtil.encode64(iv);
-//     return {
-//         cipher: cipherText,
-//         data: base64Key,
-//         iv: base64IV,
-//     };
-// }
-
-// encrypt credentials
 function aesEncrypt(data: string) {
     const iv = crypto.randomBytes(16);
     const key = crypto.randomBytes(32);
@@ -79,15 +60,7 @@ function aesEncrypt(data: string) {
 }
 
 // encrypt token request
-// function rsaEncrypt(data: string, key: string) {
-//     const publicKey = forge.pki.publicKeyFromPem(key);
-//     const returnValue = publicKey.encrypt(data, "RSAES-PKCS1-V1_5");
-
-//     return forgeUtil.encode64(returnValue);
-// }
-
 function rsaEncrypt(data: string, key: string) {
-    // const publicKey = crypto.createPublicKey(key);
     const cipherText = crypto.publicEncrypt(
         { key: key, padding: crypto.constants.RSA_PKCS1_PADDING },
         Buffer.from(data, "base64")
@@ -327,7 +300,10 @@ function flattenAnswers(root: QuestionnaireResponseItem[] | undefined) {
                         .map((answer) =>
                             typeof answer === "object" ? answer.code : answer
                         )
-                        .map((answer) => `"${answer}"`)
+                        .map(
+                            (answer) =>
+                                `"${answer.toString().replaceAll('"', "'")}"`
+                        )
                         .join(", ");
                 }
             }
@@ -442,9 +418,16 @@ const decode = async ({
 
     Object.keys(responsesMap).forEach((key) => {
         try {
+            const content = navigator.userAgent.indexOf("Windows")
+                ? encode(responsesMap[key])
+                : Buffer.from(responsesMap[key]);
             zip.file(
                 `${key.substring(key.lastIndexOf("/") + 1)}.csv`,
-                responsesMap[key],
+                new Uint8Array(
+                    content.buffer,
+                    content.byteOffset,
+                    content.byteLength
+                ),
                 {}
             );
         } catch (error) {
