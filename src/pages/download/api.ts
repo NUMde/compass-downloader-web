@@ -20,15 +20,15 @@ import { encode } from "windows-1252";
  * types
  */
 
-type DecryptedEntry = {
+interface DecryptedEntry extends Record<string, any> {
     UUID: string;
     subjectId: string;
     questionnaire: string;
     version: string;
-    JSON: QuestionnaireResponse | undefined;
+    JSON: QuestionnaireResponse;
     AbsendeDatum: string;
     ErhaltenDatum: string;
-};
+}
 
 type ResponseItem = Omit<QuestionnaireItem, "item"> & {
     answer: string | QuestionnaireItemAnswerOption[];
@@ -360,7 +360,7 @@ const decode = async ({
         "### (4/7) Getting corresponding questionnaires and write to dir ###"
     );
 
-    const responsesMap: { [key: string]: string } = {};
+    const responsesMap: { [key: string]: { [key: string]: string[] } } = {};
 
     decryptedResponses.forEach(async (entry) => {
         const { questionnaire, version } = entry;
@@ -369,7 +369,7 @@ const decode = async ({
 
         if (!Object.keys(questionnairesMap).includes(key)) {
             questionnairesMap[key] = {} as Questionnaire;
-            responsesMap[key] = "";
+            responsesMap[key] = {};
         }
     });
 
@@ -394,45 +394,84 @@ const decode = async ({
     });
 
     console.log("### (6/7) Spread JSON objects to columns ###");
-
+    const MetaColumns = [
+        "UUID",
+        "SubjectId",
+        "QuestionnaireId",
+        "Version",
+        "AbsendeDatum",
+        "ErhaltenDatum",
+    ];
     for (let i = 0; i < decryptedResponses.length; i += 1) {
         const response = decryptedResponses[i];
-        const flattenedResponses = flattenAnswers(response.JSON!.item);
-        delete response.JSON;
+        const flattenedResponses = flattenAnswers(response.JSON.item);
         const index = `${response.questionnaire}|${response.version}`;
+        // if no response object for this questionnaire has been processed yet, initialize entry
         if (!responsesMap[index]) {
-            const headline = `UUID;SubjectId;QuestionnaireId;Version;AbsendeDatum;ErhaltenDatum;${Object.keys(
-                flattenedResponses
-            ).join(";")}\n`;
-            responsesMap[index] = headline;
+            responsesMap[index] = {};
+            // build column table based on metadata and all questions
+            const columns = [
+                ...MetaColumns,
+                ...Object.keys(flattenedResponses),
+            ];
+
+            // for each question of the current questionnaire add empty array to contain all answers
+            columns.forEach((column) => {
+                responsesMap[index][column] = [];
+            });
         }
-        responsesMap[index] += `${[
-            ...Object.values(response),
-            ...Object.values(flattenedResponses),
-        ].join(";")}\n`;
+
+        responsesMap[index]["UUID"].push(response.UUID);
+        responsesMap[index]["SubjectId"].push(response.subjectId);
+        responsesMap[index]["QuestionnaireId"].push(response.questionnaire);
+        responsesMap[index]["Version"].push(response.version);
+        responsesMap[index]["AbsendeDatum"].push(response.AbsendeDatum);
+        responsesMap[index]["ErhaltenDatum"].push(response.ErhaltenDatum);
+
+        // iterate over all columns and extract the answer to that columns question
+        Object.keys(responsesMap[index]).forEach((key) => {
+            if (MetaColumns.indexOf(key) > -1) {
+                // ignore columns set manually due to key name mismatch
+                return;
+            }
+            // set the response
+            responsesMap[index][key].push(flattenedResponses[key]);
+        });
     }
 
     console.log("### (7/7) Write final files");
 
     const zip = new JSZip();
 
-    Object.keys(responsesMap).forEach((key) => {
-        try {
-            const content = navigator.userAgent.indexOf("Windows")
-                ? encode(responsesMap[key])
-                : Buffer.from(responsesMap[key]);
-            zip.file(
-                `${key.substring(key.lastIndexOf("/") + 1)}.csv`,
-                new Uint8Array(
-                    content.buffer,
-                    content.byteOffset,
-                    content.byteLength
-                ),
-                {}
-            );
-        } catch (error) {
-            console.log(error);
+    // iterate over all questionnaire and create a file for each
+    Object.keys(responsesMap).forEach((questionnaireId) => {
+        // initialize file content with headline
+        let fileContent =
+            Object.keys(responsesMap[questionnaireId]).join(";") + "\n";
+
+        //iterate
+        for (let i = 0; i < responsesMap[questionnaireId]["UUID"].length; i++) {
+            fileContent +=
+                Object.keys(responsesMap[questionnaireId])
+                    .map(
+                        (response) => responsesMap[questionnaireId][response][i]
+                    )
+                    .join(";") + "\n";
         }
+
+        const content = navigator.userAgent.indexOf("Windows")
+            ? encode(fileContent)
+            : Buffer.from(fileContent);
+        zip.file(
+            `${questionnaireId.substring(
+                questionnaireId.lastIndexOf("/") + 1
+            )}.csv`,
+            new Uint8Array(
+                content.buffer,
+                content.byteOffset,
+                content.byteLength
+            )
+        );
     });
 
     let file: Blob;
