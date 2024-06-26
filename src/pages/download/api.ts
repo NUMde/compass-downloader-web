@@ -369,7 +369,6 @@ const decode = async ({
 
         if (!Object.keys(questionnairesMap).includes(key)) {
             questionnairesMap[key] = {} as Questionnaire;
-            responsesMap[key] = {};
         }
     });
 
