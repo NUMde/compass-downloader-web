@@ -180,7 +180,7 @@ async function getQRListFromQueue(
     }
     return Promise.all(queries).then((results) => [
         ...initialList,
-        ...(results.length > 0 ? results[0] : []),
+        ...(results.length > 0 ? results.flat(1) : []),
     ]);
 }
 
