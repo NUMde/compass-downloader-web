@@ -350,7 +350,7 @@ const decode = async ({
     const decryptedResponses: Array<DecryptedEntry> = qrList.map((qr) => ({
         UUID: qr.UUID,
         subjectId: qr.SubjectId,
-        visitId: qr.VisitId,
+        visitId: qr.InstanceId,
         questionnaire: qr.QuestionnaireId,
         version: qr.Version,
         JSON: pkcs7decrypt(qr.JSON, privateKey).data.body,
