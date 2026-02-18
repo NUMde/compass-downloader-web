@@ -23,6 +23,7 @@ import { encode } from "windows-1252";
 interface DecryptedEntry extends Record<string, any> {
     UUID: string;
     subjectId: string;
+    visitId: string;
     questionnaire: string;
     version: string;
     JSON: QuestionnaireResponse;
@@ -63,7 +64,7 @@ function aesEncrypt(data: string) {
 function rsaEncrypt(data: string, key: string) {
     const cipherText = crypto.publicEncrypt(
         { key: key, padding: crypto.constants.RSA_PKCS1_PADDING },
-        Buffer.from(data, "base64")
+        Buffer.from(data, "base64"),
     );
     const base64Cipher = cipherText.toString("base64");
     return base64Cipher;
@@ -73,7 +74,7 @@ function rsaEncrypt(data: string, key: string) {
 function pkcs7decrypt(data: string, privateKey: string) {
     const pkcs7string = `-----BEGIN PKCS7-----\n${data}\n-----END PKCS7-----`;
     const p7d = forge.pkcs7.messageFromPem(
-        pkcs7string
+        pkcs7string,
     ) as pkcs7.PkcsEnvelopedData;
     const privateCert = forge.pki.decryptRsaPrivateKey(privateKey);
     try {
@@ -89,7 +90,7 @@ async function getAuthenticationToken(
     user: string,
     password: string,
     publicKey: string,
-    url: string
+    url: string,
 ): Promise<string> {
     const authCredentials = {
         ApiID: user,
@@ -134,7 +135,7 @@ async function getPage(url: string, headers: HeadersInit, page: number) {
             {
                 headers,
                 method: "GET",
-            }
+            },
         );
 
         return JSON.parse(await response.text());
@@ -157,13 +158,13 @@ async function verifyAndParseResult(jwsToken: string, publicKey: string) {
 async function getQRListFromQueue(
     url: string,
     headers: HeadersInit,
-    publicKey: string
+    publicKey: string,
 ) {
     const firstPage = await getPage(url, headers, 1);
     const { totalPages } = firstPage;
     const dfToAdd = await verifyAndParseResult(
         firstPage.cTransferList,
-        publicKey
+        publicKey,
     );
 
     const initialList = JSON.parse(dfToAdd);
@@ -173,9 +174,9 @@ async function getQRListFromQueue(
         queries.push(
             getPage(url, headers, i)
                 .then((page) =>
-                    verifyAndParseResult(page.cTransferList, publicKey)
+                    verifyAndParseResult(page.cTransferList, publicKey),
                 )
-                .then((parsedResult) => JSON.parse(parsedResult))
+                .then((parsedResult) => JSON.parse(parsedResult)),
         );
     }
     return Promise.all(queries).then((results) => [
@@ -188,7 +189,7 @@ async function getQbyURLandVersion(
     backendUrl: string,
     headers: HeadersInit,
     questionnaireUrl: string,
-    version: string
+    version: string,
 ) {
     const params = new URLSearchParams({
         url: questionnaireUrl,
@@ -218,7 +219,7 @@ async function getAllQuestionnaires(url: string, header: HeadersInit) {
     Object.keys(questionnairesMap).forEach((id) => {
         const [questionnaireUrl, version] = id.split("|");
         queries.push(
-            getQbyURLandVersion(url, header, questionnaireUrl, version)
+            getQbyURLandVersion(url, header, questionnaireUrl, version),
         );
     });
     return Promise.all(queries);
@@ -255,7 +256,7 @@ function removeExtras(node: ResponseItem) {
 
 function createResponse(
     items: ResponseItem[],
-    answerList: Record<string, string | QuestionnaireItemAnswerOption[]>
+    answerList: Record<string, string | QuestionnaireItemAnswerOption[]>,
 ) {
     const result: Record<string, any> = {};
     items?.forEach((item) => {
@@ -287,7 +288,7 @@ function flattenAnswers(root: QuestionnaireResponseItem[] | undefined) {
                     key = node.linkId;
                 } else {
                     console.error(
-                        "Invalid fallback Key. Field 'linkId' not found."
+                        "Invalid fallback Key. Field 'linkId' not found.",
                     );
                 }
             } else {
@@ -298,11 +299,11 @@ function flattenAnswers(root: QuestionnaireResponseItem[] | undefined) {
                     value = node.answer
                         .map((answer) => Object.values(answer)[0])
                         .map((answer) =>
-                            typeof answer === "object" ? answer.code : answer
+                            typeof answer === "object" ? answer.code : answer,
                         )
                         .map(
                             (answer) =>
-                                `"${answer.toString().replaceAll('"', "'")}"`
+                                `"${answer.toString().replaceAll('"', "'")}"`,
                         )
                         .join(", ");
                 }
@@ -337,7 +338,7 @@ const decode = async ({
         username,
         password,
         publicKey,
-        url
+        url,
     );
 
     const header = { Authorization: `Bearer ${accessToken}` };
@@ -349,6 +350,7 @@ const decode = async ({
     const decryptedResponses: Array<DecryptedEntry> = qrList.map((qr) => ({
         UUID: qr.UUID,
         subjectId: qr.SubjectId,
+        visitId: qr.VisitId,
         questionnaire: qr.QuestionnaireId,
         version: qr.Version,
         JSON: pkcs7decrypt(qr.JSON, privateKey).data.body,
@@ -357,7 +359,7 @@ const decode = async ({
     }));
 
     console.log(
-        "### (4/7) Getting corresponding questionnaires and write to dir ###"
+        "### (4/7) Getting corresponding questionnaires and write to dir ###",
     );
 
     const responsesMap: { [key: string]: { [key: string]: string[] } } = {};
@@ -386,7 +388,7 @@ const decode = async ({
             if (currentQuestionnaire) {
                 createResponse(
                     currentQuestionnaire.item as ResponseItem[],
-                    answerList
+                    answerList,
                 );
             }
         }
@@ -396,6 +398,7 @@ const decode = async ({
     const MetaColumns = [
         "UUID",
         "SubjectId",
+        "VisitId",
         "QuestionnaireId",
         "Version",
         "AbsendeDatum",
@@ -422,6 +425,7 @@ const decode = async ({
 
         responsesMap[index]["UUID"].push(response.UUID);
         responsesMap[index]["SubjectId"].push(response.subjectId);
+        responsesMap[index]["VisitId"].push(response.visitId);
         responsesMap[index]["QuestionnaireId"].push(response.questionnaire);
         responsesMap[index]["Version"].push(response.version);
         responsesMap[index]["AbsendeDatum"].push(response.AbsendeDatum);
@@ -453,7 +457,8 @@ const decode = async ({
             fileContent +=
                 Object.keys(responsesMap[questionnaireId])
                     .map(
-                        (response) => responsesMap[questionnaireId][response][i]
+                        (response) =>
+                            responsesMap[questionnaireId][response][i],
                     )
                     .join(";") + "\n";
         }
@@ -463,13 +468,13 @@ const decode = async ({
             : Buffer.from(fileContent);
         zip.file(
             `${questionnaireId.substring(
-                questionnaireId.lastIndexOf("/") + 1
+                questionnaireId.lastIndexOf("/") + 1,
             )}.csv`,
             new Uint8Array(
                 content.buffer,
                 content.byteOffset,
-                content.byteLength
-            )
+                content.byteLength,
+            ),
         );
     });
 
